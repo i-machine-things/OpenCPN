@@ -41,6 +41,9 @@ jobs:
           repository: OpenCPN/OpenCPN
           ref: ${{ steps.tag.outputs.tag }}
 
+      - name: Trust the checked-out tree (container UID differs from the one actions/checkout used)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build the Debian 13 package (ci/generic-build-debian.sh, from this repo's own CI)
         run: ci/generic-build-debian.sh
 
