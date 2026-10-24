@@ -54,8 +54,13 @@ jobs:
       - name: Build the Debian 13 package (ci/generic-build-debian.sh, from this repo's own CI)
         run: ci/generic-build-debian.sh
 
+      - name: Collect the built .debs into the workspace (upload-artifact rejects ".." in its path pattern)
+        run: |
+          mkdir -p dist
+          cp "$(dirname "$GITHUB_WORKSPACE")/project/build/"*.deb dist/
+
       - uses: actions/upload-artifact@v4
         with:
           name: opencpn-debian13-${{ steps.tag.outputs.tag }}
-          path: ${{ github.workspace }}/../project/build/*.deb
+          path: dist/*.deb
           if-no-files-found: error
