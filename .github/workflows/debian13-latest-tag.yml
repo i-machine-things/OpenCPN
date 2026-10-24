@@ -1,0 +1,51 @@
+# Builds a Debian 13 (trixie) .deb package of OpenCPN from the latest upstream release tag.
+#
+# Why this exists: Debian 13's own apt repo ships an older OpenCPN than upstream's latest release, and
+# there's no official trixie package from upstream CI (.circleci/config.yml only builds bookworm and
+# jammy). This reuses the project's own packaging exactly as its CircleCI bookworm job does -- same
+# ci/generic-build-debian.sh script, same debian/ packaging directory (from the ci/trixie-backports
+# branch, which already exists upstream) -- just run inside a debian:trixie container via GitHub Actions
+# instead of CircleCI, and pinned to a release tag instead of master HEAD.
+name: Build Debian 13 package from latest release tag
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly: catches a new upstream release tag without needing a manual trigger.
+    - cron: '17 4 * * 1'
+
+jobs:
+  build:
+    name: Debian 13 (trixie) package
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:trixie
+    env:
+      PACKAGE_BRANCH: ci/trixie-backports
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Tools the bare container and actions/checkout need (git, sudo, curl, jq)
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends git sudo ca-certificates curl jq
+
+      - name: Resolve the latest upstream release tag
+        id: tag
+        run: |
+          tag=$(curl -fsSL https://api.github.com/repos/OpenCPN/OpenCPN/releases/latest | jq -r .tag_name)
+          [ -n "$tag" ] && [ "$tag" != null ] || { echo "::error::could not resolve the latest release tag"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: OpenCPN/OpenCPN
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Build the Debian 13 package (ci/generic-build-debian.sh, from this repo's own CI)
+        run: ci/generic-build-debian.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencpn-debian13-${{ steps.tag.outputs.tag }}
+          path: build/*.deb
+          if-no-files-found: error
