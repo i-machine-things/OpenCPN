@@ -44,11 +44,18 @@ jobs:
       - name: Trust the checked-out tree (container UID differs from the one actions/checkout used)
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Pre-create the sibling "project" dir the script expects (a CircleCI checkout-path assumption)
+        # ci/generic-build-debian.sh finishes with `mkdir ../project/build` and `mv ../*deb ../project/build`,
+        # relative to the extracted opencpn-*/ source dir it builds in (one level below the checkout root) --
+        # CircleCI's default checkout path is ~/project, so that resolves there; ours is $GITHUB_WORKSPACE
+        # (named after the repo, not "project"), so the directory never exists unless created first.
+        run: mkdir -p "$(dirname "$GITHUB_WORKSPACE")/project"
+
       - name: Build the Debian 13 package (ci/generic-build-debian.sh, from this repo's own CI)
         run: ci/generic-build-debian.sh
 
       - uses: actions/upload-artifact@v4
         with:
           name: opencpn-debian13-${{ steps.tag.outputs.tag }}
-          path: build/*.deb
+          path: ${{ github.workspace }}/../project/build/*.deb
           if-no-files-found: error
