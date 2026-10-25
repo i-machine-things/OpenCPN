@@ -59,8 +59,42 @@ jobs:
           mkdir -p dist
           cp "$(dirname "$GITHUB_WORKSPACE")/project/build/"*.deb dist/
 
+      - name: Add an install script to the artifact
+        run: |
+          cat > dist/install.sh <<'EOF'
+          #!/usr/bin/env bash
+          # Installs the OpenCPN .deb packages next to this script.
+          # Skips opencpn-dbgsym (debug symbols only, not needed to run OpenCPN).
+          # `apt-get install` (not `dpkg -i`) so it resolves the opencpn/opencpn-data
+          # dependency between the two files and pulls in any missing libs from apt.
+          set -euo pipefail
+
+          dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          cd "$dir"
+
+          shopt -s nullglob
+          debs=(opencpn_*.deb opencpn-data_*.deb)
+          shopt -u nullglob
+
+          if [ ${#debs[@]} -eq 0 ]; then
+            echo "No opencpn_*.deb / opencpn-data_*.deb found next to this script ($dir)." >&2
+            exit 1
+          fi
+
+          paths=()
+          for f in "${debs[@]}"; do
+            paths+=("./$f")
+          done
+
+          echo "Installing: ${paths[*]}"
+          sudo apt-get install -y "${paths[@]}"
+          EOF
+          chmod +x dist/install.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: opencpn-debian13-${{ steps.tag.outputs.tag }}
-          path: dist/*.deb
+          path: |
+            dist/*.deb
+            dist/install.sh
           if-no-files-found: error
